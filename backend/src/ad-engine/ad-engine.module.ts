@@ -1,0 +1,69 @@
+import { Module } from '@nestjs/common';
+
+import { AdEngineController } from './ad-engine.controller';
+import {
+  AdEventProducerService,
+  MESSAGE_BROKER_PUBLISHER,
+} from './ad-event-producer.service';
+import { AdTargetingService } from './ad-targeting.service';
+import { ClickHouseAnalyticsEventStore } from './clickhouse-analytics-event.store';
+import {
+  ANALYTICS_EVENT_STORE,
+  ClickHouseIngestionWorkerService,
+  MESSAGE_BROKER_CONSUMER,
+} from './clickhouse-ingestion-worker.service';
+import {
+  CAMPAIGN_CACHE_STORE,
+  CampaignCacheSyncService,
+} from './campaign-cache-sync.service';
+import { DeviceDetectorService } from './device-detector.service';
+import {
+  FrequencyCappingService,
+  VELOCITY_COUNTER_STORE,
+} from './frequency-capping.service';
+import { FraudDetectionService } from './fraud-detection.service';
+import { GeoIpService } from './geo-ip.service';
+import { RedisCampaignCacheStore } from './redis-campaign-cache.store';
+import { RedisStreamMessageBrokerConsumer } from './redis-stream-message-broker.consumer';
+import { RedisStreamMessageBrokerPublisher } from './redis-stream-message-broker.publisher';
+import { RedisVelocityCounterStore } from './redis-velocity-counter.store';
+
+@Module({
+  controllers: [AdEngineController],
+  providers: [
+    AdEventProducerService,
+    AdTargetingService,
+    CampaignCacheSyncService,
+    ClickHouseAnalyticsEventStore,
+    ClickHouseIngestionWorkerService,
+    DeviceDetectorService,
+    FrequencyCappingService,
+    FraudDetectionService,
+    GeoIpService,
+    RedisCampaignCacheStore,
+    RedisStreamMessageBrokerConsumer,
+    RedisStreamMessageBrokerPublisher,
+    RedisVelocityCounterStore,
+    {
+      provide: CAMPAIGN_CACHE_STORE,
+      useExisting: RedisCampaignCacheStore,
+    },
+    {
+      provide: MESSAGE_BROKER_PUBLISHER,
+      useExisting: RedisStreamMessageBrokerPublisher,
+    },
+    {
+      provide: MESSAGE_BROKER_CONSUMER,
+      useExisting: RedisStreamMessageBrokerConsumer,
+    },
+    {
+      provide: ANALYTICS_EVENT_STORE,
+      useExisting: ClickHouseAnalyticsEventStore,
+    },
+    {
+      provide: VELOCITY_COUNTER_STORE,
+      useExisting: RedisVelocityCounterStore,
+    },
+  ],
+})
+export class AdEngineModule {}

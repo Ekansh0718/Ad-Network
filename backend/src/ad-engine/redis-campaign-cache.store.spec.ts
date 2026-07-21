@@ -1,0 +1,147 @@
+import { Prisma } from '@prisma/client';
+
+import {
+  ACTIVE_CAMPAIGNS_SET_KEY,
+  RedisCampaignCacheStore,
+  campaignCacheKey,
+} from './redis-campaign-cache.store';
+import { RedisRespClient } from './redis-resp.client';
+
+describe('RedisCampaignCacheStore', () => {
+  let commandSpy: jest.SpiedFunction<RedisRespClient['command']>;
+  let store: RedisCampaignCacheStore;
+
+  beforeEach(() => {
+    commandSpy = jest
+      .spyOn(RedisRespClient.prototype, 'command')
+      .mockImplementation(async (args) => {
+        if (args[0] === 'SMEMBERS') {
+          return ['campaign-1', 'paused-campaign'] as any;
+        }
+
+        return 1 as any;
+      });
+    store = new RedisCampaignCacheStore();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    store.onModuleDestroy();
+  });
+
+  it('serializes active campaigns into Redis hashes and the active campaign set', async () => {
+    await store.replaceActiveCampaigns([
+      {
+        id: 'campaign-1',
+        advertiserId: 'advertiser-1',
+        campaignName: 'US Mobile Banner',
+        totalBudget: new Prisma.Decimal('100.00'),
+        dailyBudget: new Prisma.Decimal('10.00'),
+        maxCpc: new Prisma.Decimal('1.00'),
+        targetCountries: ['US'],
+        targetDevices: ['mobile'],
+        status: 'ACTIVE',
+        advertiserBalanceUsd: new Prisma.Decimal('5.00'),
+      },
+    ]);
+
+    expect(commandSpy).toHaveBeenCalledWith([
+      'SMEMBERS',
+      ACTIVE_CAMPAIGNS_SET_KEY,
+    ]);
+    expect(commandSpy).toHaveBeenCalledWith([
+      'DEL',
+      campaignCacheKey('paused-campaign'),
+    ]);
+    expect(commandSpy).toHaveBeenCalledWith([
+      'DEL',
+      ACTIVE_CAMPAIGNS_SET_KEY,
+    ]);
+    expect(commandSpy).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        'HSET',
+        campaignCacheKey('campaign-1'),
+        'id',
+        'campaign-1',
+        'status',
+        'ACTIVE',
+        'targetCountries',
+        '["US"]',
+        'targetDevices',
+        '["mobile"]',
+      ]),
+    );
+    expect(commandSpy).toHaveBeenCalledWith([
+      'SADD',
+      ACTIVE_CAMPAIGNS_SET_KEY,
+      'campaign-1',
+    ]);
+  });
+
+  it('clears the active set when no active funded campaigns remain', async () => {
+    await store.replaceActiveCampaigns([]);
+
+    expect(commandSpy).toHaveBeenCalledWith([
+      'DEL',
+      campaignCacheKey('campaign-1'),
+    ]);
+    expect(commandSpy).toHaveBeenCalledWith([
+      'DEL',
+      campaignCacheKey('paused-campaign'),
+    ]);
+    expect(commandSpy).toHaveBeenCalledWith([
+      'DEL',
+      ACTIVE_CAMPAIGNS_SET_KEY,
+    ]);
+  });
+
+  it('reads active campaign hashes back from Redis for serve-time targeting', async () => {
+    commandSpy.mockImplementation(async (args) => {
+      if (args[0] === 'SMEMBERS') {
+        return ['campaign-1'] as any;
+      }
+
+      if (args[0] === 'HGETALL') {
+        return [
+          'id',
+          'campaign-1',
+          'advertiserId',
+          'advertiser-1',
+          'campaignName',
+          'US Mobile Banner',
+          'totalBudget',
+          '100',
+          'dailyBudget',
+          '10',
+          'maxCpc',
+          '2.5',
+          'targetCountries',
+          '["US"]',
+          'targetDevices',
+          '["mobile"]',
+          'status',
+          'ACTIVE',
+          'advertiserBalanceUsd',
+          '25',
+        ] as any;
+      }
+
+      return 1 as any;
+    });
+
+    await expect(store.getActiveCampaigns()).resolves.toEqual([
+      {
+        id: 'campaign-1',
+        advertiserId: 'advertiser-1',
+        campaignName: 'US Mobile Banner',
+        totalBudget: 100,
+        dailyBudget: 10,
+        maxCpc: 2.5,
+        targetCountries: ['US'],
+        targetDevices: ['mobile'],
+        status: 'ACTIVE',
+        advertiserBalanceUsd: 25,
+      },
+    ]);
+  });
+});

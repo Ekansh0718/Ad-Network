@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+backend/.env
+
+# Build
+dist/
+coverage/
+
+# Database
+data/
+
+# Prisma generated
+backend/generated/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
