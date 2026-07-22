@@ -24,6 +24,10 @@ export class FrequencyCappingService {
   private readonly impressionWindowSeconds = Number(
     process.env.VELOCITY_IMPRESSION_WINDOW_SECONDS ?? 30,
   );
+  private readonly clickLimit = Number(process.env.VELOCITY_CLICK_LIMIT ?? 3);
+  private readonly clickWindowSeconds = Number(
+    process.env.VELOCITY_CLICK_WINDOW_SECONDS ?? 60,
+  );
 
   constructor(
     @Inject(VELOCITY_COUNTER_STORE)
@@ -40,12 +44,24 @@ export class FrequencyCappingService {
       this.impressionWindowSeconds,
     );
 
-    return this.toDecision(counter, this.impressionLimit);
+    return this.toDecision(counter, this.impressionLimit, 'IMPRESSION');
+  }
+
+  async evaluateClick(ipAddress: string): Promise<FrequencyCapDecision> {
+    const normalizedIp = this.normalizeIp(ipAddress);
+    const key = `rate:click:${normalizedIp}`;
+    const counter = await this.velocityCounterStore.increment(
+      key,
+      this.clickWindowSeconds,
+    );
+
+    return this.toDecision(counter, this.clickLimit, 'CLICK');
   }
 
   private toDecision(
     counter: VelocityCounterResult,
     limit: number,
+    kind: 'IMPRESSION' | 'CLICK',
   ): FrequencyCapDecision {
     const allowed = counter.count <= limit;
 
@@ -55,7 +71,7 @@ export class FrequencyCappingService {
       count: counter.count,
       limit,
       ttlSeconds: counter.ttlSeconds,
-      reason: allowed ? undefined : 'IMPRESSION_VELOCITY_EXCEEDED',
+      reason: allowed ? undefined : `${kind}_VELOCITY_EXCEEDED`,
     };
   }
 

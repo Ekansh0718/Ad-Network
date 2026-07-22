@@ -66,4 +66,41 @@ describe('FrequencyCappingService', () => {
       reason: 'IMPRESSION_VELOCITY_EXCEEDED',
     });
   });
+
+  it('allows the first three clicks inside the 60-second rolling window', async () => {
+    store.increment.mockResolvedValue({
+      key: 'rate:click:127.0.0.1',
+      count: 3,
+      ttlSeconds: 60,
+    });
+
+    await expect(service.evaluateClick('127.0.0.1')).resolves.toEqual({
+      allowed: true,
+      key: 'rate:click:127.0.0.1',
+      count: 3,
+      limit: 3,
+      ttlSeconds: 60,
+      reason: undefined,
+    });
+    expect(store.increment).toHaveBeenCalledWith('rate:click:127.0.0.1', 60);
+  });
+
+  it('throttles the fourth click inside the 60-second rolling window', async () => {
+    store.increment.mockResolvedValue({
+      key: 'rate:click:127.0.0.1',
+      count: 4,
+      ttlSeconds: 60,
+    });
+
+    await expect(
+      service.evaluateClick('::ffff:127.0.0.1'),
+    ).resolves.toEqual({
+      allowed: false,
+      key: 'rate:click:127.0.0.1',
+      count: 4,
+      limit: 3,
+      ttlSeconds: 60,
+      reason: 'CLICK_VELOCITY_EXCEEDED',
+    });
+  });
 });

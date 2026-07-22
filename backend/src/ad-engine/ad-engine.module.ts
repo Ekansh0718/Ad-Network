@@ -7,6 +7,7 @@ import {
 } from './ad-event-producer.service';
 import { AdTargetingService } from './ad-targeting.service';
 import { ClickHouseAnalyticsEventStore } from './clickhouse-analytics-event.store';
+import { ClickHouseClickIngestionWorkerService } from './clickhouse-click-ingestion-worker.service';
 import {
   ANALYTICS_EVENT_STORE,
   ClickHouseIngestionWorkerService,
@@ -35,6 +36,7 @@ import { RedisVelocityCounterStore } from './redis-velocity-counter.store';
     AdTargetingService,
     CampaignCacheSyncService,
     ClickHouseAnalyticsEventStore,
+    ClickHouseClickIngestionWorkerService,
     ClickHouseIngestionWorkerService,
     DeviceDetectorService,
     FrequencyCappingService,

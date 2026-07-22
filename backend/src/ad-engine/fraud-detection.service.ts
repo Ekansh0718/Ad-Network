@@ -29,6 +29,64 @@ export class FraudDetectionService {
     ipAddress: string,
     userAgent?: string,
   ): Promise<FraudDecision> {
+    const baseDecision = await this.evaluateBotAndBlacklist(
+      ipAddress,
+      userAgent,
+    );
+
+    if (baseDecision.blocked) {
+      return baseDecision;
+    }
+
+    const frequencyCap = await this.frequencyCappingService.evaluateImpression(
+      this.normalizeIp(ipAddress),
+    );
+
+    if (!frequencyCap.allowed) {
+      return {
+        blocked: true,
+        reason: frequencyCap.reason,
+      };
+    }
+
+    return {
+      blocked: false,
+    };
+  }
+
+  async evaluateClickRequest(
+    ipAddress: string,
+    userAgent?: string,
+  ): Promise<FraudDecision> {
+    const baseDecision = await this.evaluateBotAndBlacklist(
+      ipAddress,
+      userAgent,
+    );
+
+    if (baseDecision.blocked) {
+      return baseDecision;
+    }
+
+    const frequencyCap = await this.frequencyCappingService.evaluateClick(
+      this.normalizeIp(ipAddress),
+    );
+
+    if (!frequencyCap.allowed) {
+      return {
+        blocked: true,
+        reason: frequencyCap.reason,
+      };
+    }
+
+    return {
+      blocked: false,
+    };
+  }
+
+  private async evaluateBotAndBlacklist(
+    ipAddress: string,
+    userAgent?: string,
+  ): Promise<FraudDecision> {
     const normalizedIp = this.normalizeIp(ipAddress);
     const blacklistEntry = await this.prisma.blacklistedIp.findUnique({
       where: { ipAddress: normalizedIp },
@@ -54,16 +112,6 @@ export class FraudDetectionService {
       return {
         blocked: true,
         reason: 'SUSPICIOUS_USER_AGENT',
-      };
-    }
-
-    const frequencyCap =
-      await this.frequencyCappingService.evaluateImpression(normalizedIp);
-
-    if (!frequencyCap.allowed) {
-      return {
-        blocked: true,
-        reason: frequencyCap.reason,
       };
     }
 

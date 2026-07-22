@@ -3,16 +3,37 @@ import { Logger } from '@nestjs/common';
 
 import {
   AdEventProducerService,
+  CLICK_EVENTS_CHANNEL,
   IMPRESSION_EVENTS_CHANNEL,
   MESSAGE_BROKER_PUBLISHER,
 } from './ad-event-producer.service';
-import type { ImpressionEvent, MessageBrokerPublisher } from './ad-event.types';
+import type {
+  ClickEvent,
+  ImpressionEvent,
+  MessageBrokerPublisher,
+} from './ad-event.types';
 
 describe('AdEventProducerService', () => {
   let service: AdEventProducerService;
   let broker: jest.Mocked<MessageBrokerPublisher>;
   const event: ImpressionEvent = {
     type: 'impression',
+    zone: '42',
+    campaign: 'campaign-1',
+    advertiser: 'advertiser-1',
+    cost: 0.001,
+    time: 1719274200,
+    request: {
+      origin: 'https://publisher.test',
+      path: '/article',
+      country: 'US',
+      device: 'mobile',
+      ipAddress: '127.0.0.1',
+      userAgent: 'Mozilla/5.0 Mobile',
+    },
+  };
+  const clickEvent: ClickEvent = {
+    type: 'click',
     zone: '42',
     campaign: 'campaign-1',
     advertiser: 'advertiser-1',
@@ -71,6 +92,29 @@ describe('AdEventProducerService', () => {
     expect(broker.publish).toHaveBeenCalledWith(
       IMPRESSION_EVENTS_CHANNEL,
       event,
+    );
+  });
+
+  it('dispatches click events to the click broker channel without awaiting the broker write', () => {
+    const neverResolvingPublish = new Promise<void>(() => undefined);
+    broker.publish.mockReturnValue(neverResolvingPublish);
+
+    expect(() => service.publishClick(clickEvent)).not.toThrow();
+    expect(broker.publish).toHaveBeenCalledWith(
+      CLICK_EVENTS_CHANNEL,
+      clickEvent,
+    );
+  });
+
+  it('swallows broker failures for click events too', async () => {
+    broker.publish.mockRejectedValue(new Error('broker unavailable'));
+
+    expect(() => service.publishClick(clickEvent)).not.toThrow();
+    await Promise.resolve();
+
+    expect(broker.publish).toHaveBeenCalledWith(
+      CLICK_EVENTS_CHANNEL,
+      clickEvent,
     );
   });
 });

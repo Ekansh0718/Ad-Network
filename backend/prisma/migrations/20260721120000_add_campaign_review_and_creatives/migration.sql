@@ -1,0 +1,6 @@
+ALTER TYPE "CampaignStatus" ADD VALUE IF NOT EXISTS 'PENDING_REVIEW';
+
+ALTER TABLE "Campaign"
+ADD COLUMN "creativeType" TEXT,
+ADD COLUMN "creativeUrl" TEXT,
+ADD COLUMN "creativeHtml" TEXT;

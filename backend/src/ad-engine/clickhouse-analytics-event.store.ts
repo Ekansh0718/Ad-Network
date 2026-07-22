@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
-import type { AnalyticsEventStore, ImpressionEvent } from './ad-event.types';
+import type {
+  AnalyticsEventStore,
+  ClickEvent,
+  ImpressionEvent,
+} from './ad-event.types';
 
 type ClickHouseOptions = {
   url: string;
@@ -21,6 +25,25 @@ export class ClickHouseAnalyticsEventStore implements AnalyticsEventStore {
   async ensureSchema() {
     await this.query(`
       CREATE TABLE IF NOT EXISTS ${this.options.database}.impressions
+      (
+        event_time DateTime,
+        zone_id String,
+        campaign_id String,
+        advertiser_id String,
+        cost Float64,
+        origin String,
+        path String,
+        country Nullable(String),
+        device String,
+        ip_address String,
+        user_agent String
+      )
+      ENGINE = MergeTree
+      ORDER BY (event_time, campaign_id, zone_id)
+    `);
+
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS ${this.options.database}.clicks
       (
         event_time DateTime,
         zone_id String,
@@ -64,6 +87,35 @@ export class ClickHouseAnalyticsEventStore implements AnalyticsEventStore {
 
     await this.query(
       `INSERT INTO ${this.options.database}.impressions FORMAT JSONEachRow`,
+      rows,
+    );
+  }
+
+  async insertClicks(events: ClickEvent[]) {
+    if (events.length === 0) {
+      return;
+    }
+
+    const rows = events
+      .map((event) =>
+        JSON.stringify({
+          event_time: this.formatDateTime(event.time),
+          zone_id: event.zone,
+          campaign_id: event.campaign,
+          advertiser_id: event.advertiser,
+          cost: event.cost,
+          origin: event.request.origin,
+          path: event.request.path,
+          country: event.request.country,
+          device: event.request.device,
+          ip_address: event.request.ipAddress,
+          user_agent: event.request.userAgent,
+        }),
+      )
+      .join('\n');
+
+    await this.query(
+      `INSERT INTO ${this.options.database}.clicks FORMAT JSONEachRow`,
       rows,
     );
   }

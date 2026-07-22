@@ -3,9 +3,12 @@ import {
   ForbiddenException,
   Get,
   Headers,
+  HttpStatus,
   Ip,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 
 import { AdEventProducerService } from './ad-event-producer.service';
 import { AdTargetingService } from './ad-targeting.service';
@@ -102,6 +105,59 @@ export class AdEngineController {
             html: `<a href="/api/v1/trap" style="display:none !important;"></a>`,
           }
         : null,
+    };
+  }
+
+  @Get('click')
+  async click(
+    @Query('zoneId') zoneId: string,
+    @Query('campaignId') campaignId: string,
+    @Query('advertiserId') advertiserId: string,
+    @Query('cost') cost: string,
+    @Query('origin') origin: string,
+    @Query('path') path: string,
+    @Query('target') target: string,
+    @Headers('user-agent') userAgent: string,
+    @Headers('x-geo-country') countryHeader: string,
+    @Ip() ipAddress: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const fraudDecision = await this.fraudDetectionService.evaluateClickRequest(
+      ipAddress,
+      userAgent,
+    );
+
+    if (fraudDecision.blocked) {
+      throw new ForbiddenException(fraudDecision.reason);
+    }
+
+    const country = this.geoIpService.resolveCountry(ipAddress, countryHeader);
+    const device = this.deviceDetectorService.detect(userAgent, 0);
+
+    this.adEventProducerService.publishClick({
+      type: 'click',
+      zone: zoneId,
+      campaign: campaignId,
+      advertiser: advertiserId,
+      cost: Number(cost) || 0,
+      time: Math.floor(Date.now() / 1000),
+      request: {
+        origin,
+        path,
+        country,
+        device,
+        ipAddress,
+        userAgent,
+      },
+    });
+
+    if (target) {
+      response.redirect(HttpStatus.FOUND, target);
+      return;
+    }
+
+    return {
+      recorded: true,
     };
   }
 

@@ -14,15 +14,20 @@ describe('AdEngineController', () => {
   };
   const adEventProducerService = {
     publishImpression: jest.fn(),
+    publishClick: jest.fn(),
   };
   const fraudDetectionService = {
     evaluateServeRequest: jest.fn(),
+    evaluateClickRequest: jest.fn(),
     recordHoneypotHit: jest.fn(),
   };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     fraudDetectionService.evaluateServeRequest.mockResolvedValue({
+      blocked: false,
+    });
+    fraudDetectionService.evaluateClickRequest.mockResolvedValue({
       blocked: false,
     });
 
@@ -156,6 +161,95 @@ describe('AdEngineController', () => {
       ),
     ).rejects.toThrow('SUSPICIOUS_USER_AGENT');
     expect(adTargetingService.selectCampaign).not.toHaveBeenCalled();
+  });
+
+  it('publishes a click event and redirects to the target landing page', async () => {
+    const response = { redirect: jest.fn() };
+
+    await controller.click(
+      '42',
+      'campaign-high',
+      'advertiser-1',
+      '2.5',
+      'https://publisher.test',
+      '/article',
+      'https://advertiser.example/landing',
+      'Mozilla/5.0 Mobile',
+      'US',
+      '127.0.0.1',
+      response as any,
+    );
+
+    expect(fraudDetectionService.evaluateClickRequest).toHaveBeenCalledWith(
+      '127.0.0.1',
+      'Mozilla/5.0 Mobile',
+    );
+    expect(adEventProducerService.publishClick).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'click',
+        zone: '42',
+        campaign: 'campaign-high',
+        advertiser: 'advertiser-1',
+        cost: 2.5,
+        request: expect.objectContaining({
+          country: 'US',
+          origin: 'https://publisher.test',
+          path: '/article',
+          ipAddress: '127.0.0.1',
+        }),
+      }),
+    );
+    expect(response.redirect).toHaveBeenCalledWith(
+      302,
+      'https://advertiser.example/landing',
+    );
+  });
+
+  it('records a click without redirecting when no target URL is provided', async () => {
+    const response = { redirect: jest.fn() };
+
+    await expect(
+      controller.click(
+        '42',
+        'campaign-high',
+        'advertiser-1',
+        '2.5',
+        'https://publisher.test',
+        '/article',
+        '',
+        'Mozilla/5.0 Mobile',
+        'US',
+        '127.0.0.1',
+        response as any,
+      ),
+    ).resolves.toEqual({ recorded: true });
+    expect(response.redirect).not.toHaveBeenCalled();
+  });
+
+  it('rejects blocked fraud/velocity click traffic before publishing', async () => {
+    fraudDetectionService.evaluateClickRequest.mockResolvedValue({
+      blocked: true,
+      reason: 'CLICK_VELOCITY_EXCEEDED',
+    });
+    const response = { redirect: jest.fn() };
+
+    await expect(
+      controller.click(
+        '42',
+        'campaign-high',
+        'advertiser-1',
+        '2.5',
+        'https://publisher.test',
+        '/article',
+        'https://advertiser.example/landing',
+        'Mozilla/5.0 Mobile',
+        'US',
+        '127.0.0.1',
+        response as any,
+      ),
+    ).rejects.toThrow('CLICK_VELOCITY_EXCEEDED');
+    expect(adEventProducerService.publishClick).not.toHaveBeenCalled();
+    expect(response.redirect).not.toHaveBeenCalled();
   });
 
   it('records honeypot trap hits into the persistent blacklist', async () => {

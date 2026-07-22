@@ -7,6 +7,8 @@ import { UsersModule } from './users/users.module';
 import { WalletModule } from './wallet/wallet.module';
 import { AdEngineModule } from './ad-engine/ad-engine.module';
 import { PublisherModule } from './publisher/publisher.module';
+import { AdvertiserModule } from './advertiser/advertiser.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { PublisherModule } from './publisher/publisher.module';
     WalletModule,
     AdEngineModule,
     PublisherModule,
+    AdvertiserModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -28,7 +28,7 @@ export class CampaignCacheSyncService
   ) {}
 
   onModuleInit() {
-    if (process.env.CAMPAIGN_CACHE_SYNC_ENABLED !== 'true') {
+    if (process.env.CAMPAIGN_CACHE_SYNC_ENABLED === 'false') {
       return;
     }
 

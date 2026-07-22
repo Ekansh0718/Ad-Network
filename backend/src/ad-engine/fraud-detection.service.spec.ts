@@ -14,6 +14,7 @@ describe('FraudDetectionService', () => {
   };
   const frequencyCappingService = {
     evaluateImpression: jest.fn(),
+    evaluateClick: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -24,6 +25,13 @@ describe('FraudDetectionService', () => {
       count: 1,
       limit: 2,
       ttlSeconds: 30,
+    });
+    frequencyCappingService.evaluateClick.mockResolvedValue({
+      allowed: true,
+      key: 'rate:click:127.0.0.1',
+      count: 1,
+      limit: 3,
+      ttlSeconds: 60,
     });
 
     const module: TestingModule = await Test.createTestingModule({
@@ -102,6 +110,52 @@ describe('FraudDetectionService', () => {
     ).resolves.toEqual({
       blocked: true,
       reason: 'IMPRESSION_VELOCITY_EXCEEDED',
+    });
+  });
+
+  it('allows normal click traffic and checks the click velocity cap, not the impression cap', async () => {
+    prismaService.blacklistedIp.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.evaluateClickRequest('127.0.0.1', 'Mozilla/5.0 Safari/537.36'),
+    ).resolves.toEqual({
+      blocked: false,
+    });
+    expect(frequencyCappingService.evaluateClick).toHaveBeenCalledWith(
+      '127.0.0.1',
+    );
+    expect(frequencyCappingService.evaluateImpression).not.toHaveBeenCalled();
+  });
+
+  it('blocks click traffic once the click velocity cap is exceeded', async () => {
+    prismaService.blacklistedIp.findUnique.mockResolvedValue(null);
+    frequencyCappingService.evaluateClick.mockResolvedValue({
+      allowed: false,
+      key: 'rate:click:127.0.0.1',
+      count: 4,
+      limit: 3,
+      ttlSeconds: 60,
+      reason: 'CLICK_VELOCITY_EXCEEDED',
+    });
+
+    await expect(
+      service.evaluateClickRequest('127.0.0.1', 'Mozilla/5.0 Safari/537.36'),
+    ).resolves.toEqual({
+      blocked: true,
+      reason: 'CLICK_VELOCITY_EXCEEDED',
+    });
+  });
+
+  it('blocks blacklisted IPs and known automation user agents on the click path too', async () => {
+    prismaService.blacklistedIp.findUnique.mockResolvedValue({
+      ipAddress: '127.0.0.1',
+    });
+
+    await expect(
+      service.evaluateClickRequest('127.0.0.1', 'Mozilla/5.0'),
+    ).resolves.toEqual({
+      blocked: true,
+      reason: 'IP_BLACKLISTED',
     });
   });
 

@@ -46,6 +46,7 @@ describe('ClickHouseIngestionWorkerService', () => {
     analyticsStore = {
       ensureSchema: jest.fn(),
       insertImpressions: jest.fn(),
+      insertClicks: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -121,6 +122,16 @@ describe('ClickHouseIngestionWorkerService', () => {
     service.onModuleDestroy();
 
     expect(analyticsStore.ensureSchema).toHaveBeenCalledTimes(1);
+
+    delete process.env.CLICKHOUSE_INGESTION_ENABLED;
+  });
+
+  it('skips schema initialization when ingestion is explicitly disabled', async () => {
+    process.env.CLICKHOUSE_INGESTION_ENABLED = 'false';
+
+    await service.onModuleInit();
+
+    expect(analyticsStore.ensureSchema).not.toHaveBeenCalled();
 
     delete process.env.CLICKHOUSE_INGESTION_ENABLED;
   });

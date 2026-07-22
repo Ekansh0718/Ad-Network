@@ -15,6 +15,7 @@ enum UserRole {
 
 enum CampaignStatus {
   DRAFT
+  PENDING_REVIEW
   ACTIVE
   PAUSED
   COMPLETED
@@ -71,6 +72,10 @@ model Campaign {
 
   targetCountries String[]
   targetDevices   String[]
+
+  creativeType String?
+  creativeUrl  String?
+  creativeHtml String?
 
   status CampaignStatus @default(DRAFT)
 

@@ -35,12 +35,11 @@ export class ClickHouseIngestionWorkerService
     private readonly analyticsEventStore: AnalyticsEventStore,
   ) {}
 
-  async onModuleInit() {
-    if (process.env.CLICKHOUSE_INGESTION_ENABLED !== 'true') {
+  onModuleInit() {
+    if (process.env.CLICKHOUSE_INGESTION_ENABLED === 'false') {
       return;
     }
 
-    await this.analyticsEventStore.ensureSchema();
     this.running = true;
     void this.runLoop();
   }
@@ -63,7 +62,9 @@ export class ClickHouseIngestionWorkerService
       };
     }
 
-    const events = messages.map((message) => message.payload);
+    const events = messages.map(
+      (message) => message.payload as ImpressionEvent,
+    );
     await this.flush(events);
     await this.messageBrokerConsumer.acknowledge(
       IMPRESSION_EVENTS_CHANNEL,
@@ -77,6 +78,19 @@ export class ClickHouseIngestionWorkerService
   }
 
   private async runLoop() {
+    while (this.running) {
+      try {
+        await this.analyticsEventStore.ensureSchema();
+        break;
+      } catch (error) {
+        this.logger.error(
+          'ClickHouse schema initialization failed, retrying in 5s',
+          error,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+    }
+
     while (this.running) {
       try {
         await this.processNextBatch();

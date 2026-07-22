@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 describe('publisher portal static UI', () => {
-  const publicDir = join(process.cwd(), 'public');
+  const publicDir = join(process.cwd(), '..', 'frontend');
   const html = readFileSync(
     join(publicDir, 'publisher-portal.html'),
     'utf8',

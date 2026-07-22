@@ -1,8 +1,8 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 
 import type {
+  AdEvent,
   BrokerMessage,
-  ImpressionEvent,
   MessageBrokerConsumer,
 } from './ad-event.types';
 import { RedisRespClient } from './redis-resp.client';
@@ -25,7 +25,7 @@ export class RedisStreamMessageBrokerConsumer
     lastMessageId: string,
     count: number,
     blockMs: number,
-  ): Promise<BrokerMessage<ImpressionEvent>[]> {
+  ): Promise<BrokerMessage<AdEvent>[]> {
     const response = await this.redis.command<RedisStreamResponse | null>([
       'XREAD',
       'COUNT',
@@ -58,8 +58,8 @@ export class RedisStreamMessageBrokerConsumer
 
   private parseStreamResponse(
     response: RedisStreamResponse,
-  ): BrokerMessage<ImpressionEvent>[] {
-    const messages: BrokerMessage<ImpressionEvent>[] = [];
+  ): BrokerMessage<AdEvent>[] {
+    const messages: BrokerMessage<AdEvent>[] = [];
 
     for (const [, entries] of response) {
       for (const [id, fields] of entries) {
@@ -71,7 +71,7 @@ export class RedisStreamMessageBrokerConsumer
 
         messages.push({
           id,
-          payload: JSON.parse(fields[payloadIndex + 1]) as ImpressionEvent,
+          payload: JSON.parse(fields[payloadIndex + 1]) as AdEvent,
         });
       }
     }

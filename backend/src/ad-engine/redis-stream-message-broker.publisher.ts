@@ -1,6 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 
-import type { ImpressionEvent, MessageBrokerPublisher } from './ad-event.types';
+import type { AdEvent, MessageBrokerPublisher } from './ad-event.types';
 import { RedisRespClient } from './redis-resp.client';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class RedisStreamMessageBrokerPublisher
     password: process.env.REDIS_PASSWORD,
   });
 
-  async publish(channel: string, payload: ImpressionEvent) {
+  async publish(channel: string, payload: AdEvent) {
     await this.redis.command([
       'XADD',
       channel,
